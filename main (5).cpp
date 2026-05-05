@@ -1,193 +1,130 @@
-// ================================================================
-// PRÁCTICA: TABLAS HASH EN C++
-// Compilar: g++ -O2 -std=c++17 -o hash_tabla hash_tabla.cpp
-// ================================================================
-
 #include <iostream>
 #include <vector>
 #include <list>
-#include <string>
-#include <chrono>
-#include <iomanip>
+#include <fstream>
+#include <sstream>
 
 using namespace std;
-using namespace std::chrono;
 
-// ─────────────────────────────────────────────
-// ESTRUCTURA
-// ─────────────────────────────────────────────
-struct Registro {
-    string clave;
-    string valor;
-};
+class TablaHash {
+private:
+    int tamaño;
+    vector<list<int>> tabla;
 
-// ─────────────────────────────────────────────
-// FUNCIÓN HASH
-// ─────────────────────────────────────────────
-size_t funcionHash(const string& clave, size_t tamanio) {
-    size_t hash = 0;
-    for (char c : clave)
-        hash = (hash * 31 + c) % tamanio;
-    return hash;
-}
-
-// ─────────────────────────────────────────────
-// ENCADENAMIENTO
-// ─────────────────────────────────────────────
-class TablaHashEncadenamiento {
 public:
-    size_t tamanio;
-    vector<list<Registro>> tabla;
-    long long colisiones = 0;
-    long long elementos = 0;
-
-    TablaHashEncadenamiento(size_t m) : tamanio(m), tabla(m) {}
-
-    void insertar(const Registro& reg) {
-        size_t idx = funcionHash(reg.clave, tamanio);
-        if (!tabla[idx].empty())
-            colisiones++;
-        tabla[idx].push_back(reg);
-        elementos++;
+    TablaHash(int t) {
+        tamaño = t;
+        tabla.resize(tamaño);
     }
 
-    Registro* buscar(const string& clave) {
-        size_t idx = funcionHash(clave, tamanio);
-        for (auto& reg : tabla[idx]) {
-            if (reg.clave == clave)
-                return &reg;
+    int hashFuncion(int valor) {
+        return valor % tamaño;
+    }
+
+    void insertar(int valor) {
+        int index = hashFuncion(valor);
+        tabla[index].push_back(valor);
+    }
+
+    void buscar(int valor) {
+        int index = hashFuncion(valor);
+        for (int v : tabla[index]) {
+            if (v == valor) {
+                cout << "Encontrado en índice " << index << endl;
+                return;
+            }
         }
-        return nullptr;
+        cout << "No encontrado" << endl;
     }
 
-    double factorDeCarga() const {
-        return (double)elementos / tamanio;
+    void eliminar(int valor) {
+        int index = hashFuncion(valor);
+        tabla[index].remove(valor);
     }
-};
 
-// ─────────────────────────────────────────────
-// SONDEO LINEAL
-// ─────────────────────────────────────────────
-class TablaHashSondeoLineal {
-public:
-    enum Estado { VACIO, OCUPADO };
+    void mostrar() {
+        cout << "\nTabla Hash:\n";
+        for (int i = 0; i < tamaño; i++) {
+            cout << i << ": ";
+            for (int v : tabla[i]) {
+                cout << v << " -> ";
+            }
+            cout << endl;
+        }
+    }
 
-    size_t tamanio;
-    vector<Registro> tabla;
-    vector<Estado> estados;
-    long long colisiones = 0;
-    long long elementos = 0;
+    void cargarCSV(string nombreArchivo) {
+        ifstream archivo(nombreArchivo);
+        string linea;
+        int contador = 0;
 
-    TablaHashSondeoLineal(size_t m)
-        : tamanio(m), tabla(m), estados(m, VACIO) {}
-
-    bool insertar(const Registro& reg) {
-        if ((double)elementos / tamanio >= 0.75)
-            return false;
-
-        size_t idx = funcionHash(reg.clave, tamanio);
-        size_t pasos = 0;
-
-        while (estados[idx] == OCUPADO) {
-            colisiones++;
-            idx = (idx + 1) % tamanio;
-            if (++pasos >= tamanio)
-                return false;
+        if (!archivo.is_open()) {
+            cout << "Error al abrir el archivo\n";
+            return;
         }
 
-        tabla[idx] = reg;
-        estados[idx] = OCUPADO;
-        elementos++;
-        return true;
+        while (getline(archivo, linea)) {
+            stringstream ss(linea);
+            int valor;
+
+            if (ss >> valor) {
+                insertar(valor);
+                contador++;
+            }
+        }
+
+        archivo.close();
+        cout << "Datos cargados: " << contador << endl;
     }
+};
 
-    Registro* buscar(const string& clave) {
-        size_t idx = funcionHash(clave, tamanio);
-        size_t pasos = 0;
+int main() {
+    TablaHash hash(10);
+    int opcion, valor;
+    string archivo;
 
-        while (estados[idx] != VACIO) {
-            if (estados[idx] == OCUPADO && tabla[idx].clave == clave)
-                return &tabla[idx];
-            idx = (idx + 1) % tamanio;
-            if (++pasos >= tamanio)
+    do {
+        cout << "\n--- MENU ---\n";
+        cout << "1. Insertar\n";
+        cout << "2. Buscar\n";
+        cout << "3. Eliminar\n";
+        cout << "4. Mostrar tabla\n";
+        cout << "5. Cargar CSV\n";
+        cout << "0. Salir\n";
+        cout << "Opción: ";
+        cin >> opcion;
+
+        switch (opcion) {
+            case 1:
+                cout << "Ingrese valor: ";
+                cin >> valor;
+                hash.insertar(valor);
+                break;
+
+            case 2:
+                cout << "Ingrese valor: ";
+                cin >> valor;
+                hash.buscar(valor);
+                break;
+
+            case 3:
+                cout << "Ingrese valor: ";
+                cin >> valor;
+                hash.eliminar(valor);
+                break;
+
+            case 4:
+                hash.mostrar();
+                break;
+
+            case 5:
+                cout << "Ingrese nombre del archivo CSV: ";
+                cin >> archivo;
+                hash.cargarCSV(archivo);
                 break;
         }
-        return nullptr;
-    }
 
-    double factorDeCarga() const {
-        return (double)elementos / tamanio;
-    }
-};
-
-// ─────────────────────────────────────────────
-// BENCHMARK
-// ─────────────────────────────────────────────
-void benchmark(const vector<Registro>& datos, vector<size_t> tamanios) {
-
-    cout << left
-         << setw(8) << "m"
-         << setw(8) << "n"
-         << setw(12) << "Col_Enc"
-         << setw(12) << "Time_Enc(us)"
-         << setw(12) << "Col_SL"
-         << setw(12) << "Time_SL(us)"
-         << endl;
-
-    cout << string(72, '-') << endl;
-
-    for (size_t m : tamanios) {
-
-        size_t n = min(datos.size(), (size_t)(m * 0.65));
-
-        // Encadenamiento
-        TablaHashEncadenamiento enc(m);
-        auto t0 = high_resolution_clock::now();
-        for (size_t i = 0; i < n; i++)
-            enc.insertar(datos[i]);
-        auto t1 = high_resolution_clock::now();
-        auto tiempo_enc = duration_cast<microseconds>(t1 - t0).count();
-
-        // Sondeo lineal
-        TablaHashSondeoLineal sl(m);
-        t0 = high_resolution_clock::now();
-        for (size_t i = 0; i < n; i++)
-            sl.insertar(datos[i]);
-        t1 = high_resolution_clock::now();
-        auto tiempo_sl = duration_cast<microseconds>(t1 - t0).count();
-
-        cout << setw(8) << m
-             << setw(8) << n
-             << setw(12) << enc.colisiones
-             << setw(12) << tiempo_enc
-             << setw(12) << sl.colisiones
-             << setw(12) << tiempo_sl
-             << endl;
-    }
-}
-
-// ─────────────────────────────────────────────
-// MAIN
-// ─────────────────────────────────────────────
-int main() {
-
-    cout << "=== BENCHMARK TABLAS HASH (C++) ===\n\n";
-
-    vector<Registro> datos;
-
-    // Datos sintéticos
-    for (int i = 0; i < 5000; i++) {
-        Registro r;
-        r.clave = "user_" + to_string(i + 1);
-        r.valor = "valor_" + to_string(i);
-        datos.push_back(r);
-    }
-
-    cout << "Registros generados: " << datos.size() << "\n\n";
-
-    vector<size_t> tamanios = {1009, 2003, 4001, 8009};
-
-    benchmark(datos, tamanios);
+    } while (opcion != 0);
 
     return 0;
 }
